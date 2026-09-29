@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import * as THREE from "three"
 import { ArchiveIcon, BoxIcon, ChevronLeftIcon, ChevronRightIcon, MapPinIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { AddComponentDialog } from "@/components/add-component-dialog"
 import { UpdateStockQuantityDrawer } from "@/components/update-stock-quantity-drawer"
@@ -70,7 +69,7 @@ function getThemeColors() {
       }
 }
 
-function setSlotAppearance(mesh: THREE.Mesh, selected: boolean, colors: ReturnType<typeof getThemeColors>) {
+function setSlotAppearance(mesh: THREE.Mesh, selected: boolean, colors: ReturnType<typeof getThemeColors>, highlighted = false) {
   const materials = mesh.material as THREE.MeshBasicMaterial[]
   const occupied = Boolean(mesh.userData.occupied)
   materials.forEach((material, index) => {
@@ -78,7 +77,7 @@ function setSlotAppearance(mesh: THREE.Mesh, selected: boolean, colors: ReturnTy
       ? colors.occupied
       : selected ? colors.accent : index === 2 ? colors.slot : colors.side)
     material.transparent = occupied
-    material.opacity = occupied ? colors.occupiedOpacity : 1
+    material.opacity = occupied ? highlighted ? 0.94 : colors.occupiedOpacity : 1
     material.depthWrite = !occupied
   })
 }
@@ -93,15 +92,21 @@ function setMaterialOpacity(object: THREE.Mesh | THREE.LineSegments, opacity: nu
   })
 }
 
-function StorageBoxThumbnail({ active }: { active: boolean }) {
+function StorageBoxThumbnail({ active, boxId }: { active: boolean; boxId: string }) {
   return (
-    <span className={cn("grid h-7 w-11 place-items-center", active ? "text-foreground" : "text-muted-foreground")}>
-      <ArchiveIcon aria-hidden="true" className="size-6" strokeWidth={1.5} />
+    <span aria-hidden="true" className={cn("flex h-7 items-center justify-center gap-1.5", active ? "text-foreground" : "text-muted-foreground")}>
+      <ArchiveIcon aria-hidden="true" className="size-5" strokeWidth={1.5} />
+      <span className={cn(
+        "inline-flex h-4 shrink-0 items-center rounded-sm border px-1 font-mono text-[8px] font-bold leading-none shadow-xs",
+        active ? "border-foreground/30 bg-foreground text-background" : "border-border bg-muted/70 text-foreground",
+      )}>
+        ID {boxId}
+      </span>
     </span>
   )
 }
 
-function paintLabelTexture(canvas: HTMLCanvasElement, label: string, subtitle: string, dark: boolean) {
+function paintLabelTexture(canvas: HTMLCanvasElement, boxId: string, label: string, subtitle: string, dark: boolean) {
   const context = canvas.getContext("2d")
   if (!context) return
   const fontFamily = '"Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif'
@@ -126,15 +131,19 @@ function paintLabelTexture(canvas: HTMLCanvasElement, label: string, subtitle: s
   context.lineTo(56, 260)
   context.stroke()
 
-  const labelSize = fitFont(label, 860, 132, 700)
+  context.font = `700 34px ${fontFamily}`
+  context.fillStyle = dark ? "#a3e635" : "#ea580c"
+  context.fillText(`BOX ID  ${boxId}`, 92, 60)
+
+  const labelSize = fitFont(label, 860, 118, 700)
   context.font = `700 ${labelSize}px ${fontFamily}`
   context.fillStyle = dark ? "#ecfccb" : "#9a3412"
-  context.fillText(label, 92, 120)
+  context.fillText(label, 92, 142)
 
-  const subtitleSize = fitFont(subtitle, 860, 60, 500)
+  const subtitleSize = fitFont(subtitle, 860, 52, 500)
   context.font = `500 ${subtitleSize}px ${fontFamily}`
   context.fillStyle = dark ? "#cbd5e1" : "#475569"
-  context.fillText(subtitle, 92, 205)
+  context.fillText(subtitle, 92, 218)
 
   context.strokeStyle = dark ? "rgba(226,232,240,.28)" : "rgba(71,85,105,.28)"
   context.lineWidth = 3
@@ -144,17 +153,19 @@ function paintLabelTexture(canvas: HTMLCanvasElement, label: string, subtitle: s
   context.stroke()
 }
 
-function ThreeStorageScene({ label, subtitle, locations, selectedCell, onSelect, onHover }: { label: string; subtitle: string; locations: Map<string, ComponentItem[]>; selectedCell: Cell | null; onSelect: (cell: Cell | null) => void; onHover: (cell: Cell | null) => void }) {
+function ThreeStorageScene({ boxId, label, subtitle, locations, selectedCell, onSelect, onHover, interactive = true, highlightedCells, horizontalFraming = 1 }: { boxId: string; label: string; subtitle: string; locations: Map<string, ComponentItem[]>; selectedCell: Cell | null; onSelect: (cell: Cell | null) => void; onHover: (cell: Cell | null) => void; interactive?: boolean; highlightedCells?: Set<string>; horizontalFraming?: number }) {
   const mountRef = useRef<HTMLDivElement>(null)
   const selectedRef = useRef(selectedCell)
   const onSelectRef = useRef(onSelect)
   const onHoverRef = useRef(onHover)
+  const highlightedRef = useRef(highlightedCells)
 
   useEffect(() => {
     selectedRef.current = selectedCell
     onSelectRef.current = onSelect
     onHoverRef.current = onHover
-  }, [onHover, onSelect, selectedCell])
+    highlightedRef.current = highlightedCells
+  }, [highlightedCells, onHover, onSelect, selectedCell])
 
   useEffect(() => {
     const container = mountRef.current
@@ -181,7 +192,7 @@ function ThreeStorageScene({ label, subtitle, locations, selectedCell, onSelect,
     const labelCanvas = document.createElement("canvas")
     labelCanvas.width = 1024
     labelCanvas.height = 320
-    paintLabelTexture(labelCanvas, label, subtitle, document.documentElement.classList.contains("dark"))
+    paintLabelTexture(labelCanvas, boxId, label, subtitle, document.documentElement.classList.contains("dark"))
     const labelTexture = new THREE.CanvasTexture(labelCanvas)
     labelTexture.colorSpace = THREE.SRGBColorSpace
     labelTexture.anisotropy = renderer.capabilities.getMaxAnisotropy()
@@ -244,11 +255,12 @@ function ThreeStorageScene({ label, subtitle, locations, selectedCell, onSelect,
       const key = `${x}-${y}`
       const cellItems = locations.get(key) ?? []
       const occupied = cellItems.length > 0
+      const highlighted = Boolean(highlightedRef.current?.has(key))
       const slotGeometry = new THREE.BoxGeometry(0.94, 0.18, 0.86)
       const slot = new THREE.Mesh(slotGeometry, Array.from({ length: 6 }, (_, faceIndex) => new THREE.MeshBasicMaterial({
         color: occupied ? colors.occupied : faceIndex === 2 ? colors.slot : colors.side,
         transparent: occupied,
-        opacity: occupied ? colors.occupiedOpacity : 1,
+        opacity: occupied ? highlighted ? 0.94 : colors.occupiedOpacity : 1,
         depthWrite: !occupied,
       })))
       slot.userData.themeRole = "slot"
@@ -271,7 +283,6 @@ function ThreeStorageScene({ label, subtitle, locations, selectedCell, onSelect,
     }
 
     let frame = 0
-    let targetZoom = 1.05
     let hoveredKey: string | null = null
 
     function resize() {
@@ -279,15 +290,14 @@ function ThreeStorageScene({ label, subtitle, locations, selectedCell, onSelect,
       const height = mountRef.current?.clientHeight ?? 0
       const aspect = width / Math.max(height, 1)
       const frustumHeight = 11
-      camera.left = -(frustumHeight * aspect) / 2
-      camera.right = (frustumHeight * aspect) / 2
+      camera.left = -(frustumHeight * aspect * horizontalFraming) / 2
+      camera.right = (frustumHeight * aspect * horizontalFraming) / 2
       camera.top = frustumHeight / 2
       camera.bottom = -frustumHeight / 2
       camera.updateProjectionMatrix()
       renderer.setSize(width, height, false)
       const compact = width < 640
-      targetZoom = compact ? 0.68 : 1.05
-      camera.zoom = targetZoom
+      camera.zoom = compact ? 0.68 : 1.05
       camera.updateProjectionMatrix()
       projectedLabel.position.set(compact ? 0.15 : -2, -0.55, compact ? 5 : 5.7)
       projectedLabel.scale.setScalar(compact ? 0.9 : 1)
@@ -326,28 +336,23 @@ function ThreeStorageScene({ label, subtitle, locations, selectedCell, onSelect,
       const cell = pointerCell(event)
       onSelectRef.current(cell ?? null)
     }
-    function handleWheel(event: WheelEvent) {
-      event.preventDefault()
-      targetZoom = THREE.MathUtils.clamp(targetZoom - event.deltaY * 0.001, 0.72, 1.75)
+    if (interactive) {
+      renderer.domElement.addEventListener("pointermove", handlePointerMove)
+      renderer.domElement.addEventListener("pointerleave", handlePointerLeave)
+      renderer.domElement.addEventListener("click", handleClick)
     }
-
-    renderer.domElement.addEventListener("pointermove", handlePointerMove)
-    renderer.domElement.addEventListener("pointerleave", handlePointerLeave)
-    renderer.domElement.addEventListener("click", handleClick)
-    renderer.domElement.addEventListener("wheel", handleWheel, { passive: false })
     const observer = new ResizeObserver(resize)
     observer.observe(container)
     resize()
 
     function animate(now: number) {
-      camera.zoom = THREE.MathUtils.lerp(camera.zoom, targetZoom, 0.12)
-      camera.updateProjectionMatrix()
       const selectedKey = selectedRef.current ? `${selectedRef.current.x}-${selectedRef.current.y}` : null
       for (const [key, mesh] of slotMeshes) {
-        setSlotAppearance(mesh, key === selectedKey, colors)
+        const highlighted = Boolean(highlightedRef.current?.has(key))
+        setSlotAppearance(mesh, key === selectedKey, colors, highlighted)
         const slotGroup = slotGroups.get(key)
         if (slotGroup) {
-          const targetY = 0.24 + (key === hoveredKey ? 0.2 : 0)
+          const targetY = 0.24 + (key === hoveredKey || highlighted ? 0.2 : 0)
           const smoothing = 1 - Math.exp(-Math.min(now - (slotGroup.userData.lastFrame ?? now), 48) * 0.018)
           slotGroup.position.y = THREE.MathUtils.lerp(slotGroup.position.y, targetY, smoothing)
           slotGroup.userData.lastFrame = now
@@ -385,10 +390,11 @@ function ThreeStorageScene({ label, subtitle, locations, selectedCell, onSelect,
         } else if (role === "slot") {
           const slotMesh = object as THREE.Mesh
           const cell = slotMesh.userData.cell as Cell | undefined
+          const key = cell ? `${cell.x}-${cell.y}` : ""
           const selected = cell && `${cell.x}-${cell.y}` === `${selectedRef.current?.x}-${selectedRef.current?.y}`
-          setSlotAppearance(slotMesh, Boolean(selected), colors)
+          setSlotAppearance(slotMesh, Boolean(selected), colors, Boolean(highlightedRef.current?.has(key)))
         } else if (role === "projectedLabel") {
-          paintLabelTexture(labelCanvas, label, subtitle, document.documentElement.classList.contains("dark"))
+          paintLabelTexture(labelCanvas, boxId, label, subtitle, document.documentElement.classList.contains("dark"))
           labelTexture.needsUpdate = true
         }
       })
@@ -403,7 +409,6 @@ function ThreeStorageScene({ label, subtitle, locations, selectedCell, onSelect,
       renderer.domElement.removeEventListener("pointermove", handlePointerMove)
       renderer.domElement.removeEventListener("pointerleave", handlePointerLeave)
       renderer.domElement.removeEventListener("click", handleClick)
-      renderer.domElement.removeEventListener("wheel", handleWheel)
       renderer.dispose()
       container.removeChild(renderer.domElement)
       scene.traverse((object) => {
@@ -421,9 +426,9 @@ function ThreeStorageScene({ label, subtitle, locations, selectedCell, onSelect,
         }
       })
     }
-  }, [label, locations, subtitle])
+  }, [boxId, horizontalFraming, interactive, label, locations, subtitle])
 
-  return <div ref={mountRef} className="h-[360px] w-full touch-none sm:h-[430px]" aria-label={`${label} 三维收纳盒`} role="img" />
+  return <div ref={mountRef} className="h-[360px] w-full touch-none sm:h-[430px]" aria-label={`盒子 ID ${boxId}，${label} 三维收纳盒${highlightedCells?.size ? `，高亮 ${highlightedCells.size} 个匹配货位` : ""}`} role="img" />
 }
 
 export function InventoryLocationMap({ items, boxes: incomingBoxes = [] }: { items: ComponentItem[]; boxes?: StorageBox[] }) {
@@ -442,6 +447,7 @@ export function InventoryLocationMap({ items, boxes: incomingBoxes = [] }: { ite
   const [draftSubtitle, setDraftSubtitle] = useState("")
 
   const box = boxes[activeBox] ?? boxes[0]
+  const nextBoxId = Array.from({ length: 26 }, (_, index) => String.fromCharCode(65 + index)).find((candidate) => !boxes.some((boxItem) => boxItem.id === candidate)) ?? `BOX-${boxes.length + 1}`
   const visibleBoxStart = Math.min(Math.max(activeBox - 1, 0), Math.max(boxes.length - 3, 0))
   const visibleBoxes = boxes.slice(visibleBoxStart, visibleBoxStart + 3)
   const locationsByBox = useMemo(() => {
@@ -517,8 +523,7 @@ export function InventoryLocationMap({ items, boxes: incomingBoxes = [] }: { ite
     if (!label) return
     if (dialog === "rename") await actions.updateStorageBox(box.id, label, subtitle)
     if (dialog === "add") {
-      const id = Array.from({ length: 26 }, (_, index) => String.fromCharCode(65 + index)).find((candidate) => !boxes.some((boxItem) => boxItem.id === candidate)) ?? `BOX-${boxes.length + 1}`
-      await actions.createStorageBox(id, label, subtitle)
+      await actions.createStorageBox(nextBoxId, label, subtitle)
       setActiveBox(boxes.length)
     }
     setDialog(null)
@@ -539,9 +544,11 @@ export function InventoryLocationMap({ items, boxes: incomingBoxes = [] }: { ite
           <div className="flex items-center gap-2">
             <MapPinIcon className="size-4 text-muted-foreground" />
             <h3 id="location-map-title" className="text-sm font-semibold">收纳盒总览</h3>
-            <Badge variant="outline" className="font-mono text-[10px] font-normal">7 × 8 · 3D</Badge>
+            {/* <Badge variant="outline" className="font-mono text-[10px] font-normal">7 × 8 · 3D</Badge> */}
           </div>
-          <p className="mt-1.5 pl-6 text-xs text-muted-foreground">滚轮缩放；点击空位快速录入，点击已占用货位修改库存。</p>
+          <p className="mt-1 pl-6 text-xs text-muted-foreground">
+            货位编码：盒子 ID-行-列
+          </p>
         </div>
         <div className="-mx-2 flex min-w-0 items-center justify-end overflow-x-auto px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <Button type="button" variant="ghost" size="icon" aria-label="上一个元件盒" title="上一个元件盒" onClick={() => carouselApi?.scrollPrev()} disabled={boxes.length <= 1} className="size-11 shrink-0 cursor-pointer"><ChevronLeftIcon /></Button>
@@ -556,16 +563,17 @@ export function InventoryLocationMap({ items, boxes: incomingBoxes = [] }: { ite
                   role="tab"
                   aria-selected={isActive}
                   aria-controls={`storage-box-panel-${candidate.id}`}
-                  title={`${candidate.label} · ${candidate.subtitle}`}
+                  aria-label={`盒子 ID ${candidate.id}，${candidate.label}，${candidate.subtitle}`}
+                  title={`盒子 ID ${candidate.id} · ${candidate.label} · ${candidate.subtitle}`}
                   onClick={() => carouselApi?.scrollTo(index)}
                   className={cn(
-                    "relative flex min-w-18 cursor-pointer flex-col items-center justify-center px-2 text-center transition-colors duration-200 focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring",
+                    "relative flex min-w-20 cursor-pointer flex-col items-center justify-center px-2 text-center transition-colors duration-200 focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring",
                     isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground",
                     "after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:origin-center after:scale-x-0 after:bg-orange-500 after:transition-transform after:duration-200 dark:after:bg-lime-400",
                     isActive && "after:scale-x-100",
                   )}
                 >
-                  <StorageBoxThumbnail active={isActive} />
+                  <StorageBoxThumbnail active={isActive} boxId={candidate.id} />
                   <span className="-mt-0.5 max-w-20 truncate text-[11px] font-semibold leading-4">{candidate.label}</span>
                   <span className="max-w-20 truncate text-[9px] leading-3 text-muted-foreground">{candidate.subtitle}</span>
                 </button>
@@ -597,6 +605,7 @@ export function InventoryLocationMap({ items, boxes: incomingBoxes = [] }: { ite
                 <div className={cn("relative bg-card", !isActive && "pointer-events-none")} aria-hidden={!isActive}>
                   {shouldRender ? (
                     <ThreeStorageScene
+                      boxId={candidate.id}
                       label={candidate.label}
                       subtitle={candidate.subtitle}
                       locations={candidateLocations}
@@ -643,10 +652,14 @@ export function InventoryLocationMap({ items, boxes: incomingBoxes = [] }: { ite
           <DialogHeader>
             <DialogTitle>{dialog === "add" ? "新增收纳盒" : "编辑收纳盒"}</DialogTitle>
             <DialogDescription>
-              {dialog === "add" ? "填写名称和说明，新盒子会立即加入顶部导航。" : `修改${box.label}的名称和说明，不会改变已有货位坐标。`}
+              {dialog === "add" ? "填写名称和说明，新盒子会自动分配下一个可用的大写字母 ID。" : `修改${box.label}的名称和说明；盒子 ID ${box.id} 与已有货位坐标不会改变。`}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="rounded-xl border border-border bg-muted/40 px-3 py-2.5">
+              <p className="text-xs text-muted-foreground">盒子 ID</p>
+              <p className="mt-1 font-mono text-sm font-semibold text-foreground">{dialog === "add" ? `${nextBoxId}（保存后生效）` : box.id}</p>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="storage-box-name">盒子名称</Label>
               <Input
@@ -677,6 +690,95 @@ export function InventoryLocationMap({ items, boxes: incomingBoxes = [] }: { ite
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </section>
+  )
+}
+
+export function InventoryMatchMap({ items, boxes: incomingBoxes = [], matchedItemIds }: { items: ComponentItem[]; boxes?: StorageBox[]; matchedItemIds: Set<string> }) {
+  const boxes = incomingBoxes.length > 0 ? incomingBoxes : DEFAULT_BOXES
+  const [activeBoxId, setActiveBoxId] = useState<string | null>(null)
+  const locationsByBox = useMemo(() => {
+    const boxMaps = new Map<string, Map<string, ComponentItem[]>>()
+    for (const candidate of boxes) boxMaps.set(candidate.id, new Map())
+    for (const item of items) {
+      const parsed = parseLocation(item.location)
+      const locationMap = parsed ? boxMaps.get(parsed.boxId) : undefined
+      if (!parsed || !locationMap) continue
+      const key = `${parsed.x}-${parsed.y}`
+      locationMap.set(key, [...(locationMap.get(key) ?? []), item])
+    }
+    return boxMaps
+  }, [boxes, items])
+  const highlightedByBox = useMemo(() => {
+    const result = new Map<string, Set<string>>()
+    for (const candidate of boxes) result.set(candidate.id, new Set())
+    for (const item of items) {
+      if (!matchedItemIds.has(item.id)) continue
+      const parsed = parseLocation(item.location)
+      if (parsed) result.get(parsed.boxId)?.add(`${parsed.x}-${parsed.y}`)
+    }
+    return result
+  }, [boxes, items, matchedItemIds])
+
+  const preferredBox = boxes.find((candidate) => (highlightedByBox.get(candidate.id)?.size ?? 0) > 0)
+  const box = boxes.find((candidate) => candidate.id === activeBoxId) ?? preferredBox ?? boxes[0]
+  const locations = locationsByBox.get(box.id) ?? new Map<string, ComponentItem[]>()
+  const highlightedCells = highlightedByBox.get(box.id) ?? new Set<string>()
+  const matchedWithLocation = items.filter((item) => {
+    const parsed = parseLocation(item.location)
+    return matchedItemIds.has(item.id) && Boolean(parsed && boxes.some((candidate) => candidate.id === parsed.boxId))
+  }).length
+  const matchedWithoutLocation = matchedItemIds.size - matchedWithLocation
+
+  return (
+    <section aria-labelledby="bom-location-map-title" className="overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-xs">
+      <div className="flex flex-col gap-4 border-b border-border/70 px-5 py-4 sm:px-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1.5"><span aria-hidden="true" className="size-2 rounded-full bg-orange-500 dark:bg-lime-400" />库存匹配 {matchedWithLocation}</span>
+            {matchedWithoutLocation > 0 ? <span className="text-amber-700 dark:text-amber-400">未分配库位 {matchedWithoutLocation}</span> : null}
+          </div>
+        </div>
+        <div role="tablist" aria-label="选择收纳盒" className="flex min-w-0 gap-1 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {boxes.map((candidate) => {
+            const active = candidate.id === box.id
+            const count = highlightedByBox.get(candidate.id)?.size ?? 0
+            return (
+              <button
+                key={candidate.id}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                aria-label={`盒子 ID ${candidate.id}，${candidate.label}，${count} 个匹配货位`}
+                onClick={() => setActiveBoxId(candidate.id)}
+                className={cn("flex min-h-11 shrink-0 cursor-pointer items-center gap-2 rounded-xl px-3 text-left text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring", active ? "bg-foreground text-background" : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground")}
+              >
+                <BoxIcon aria-hidden="true" className="size-4" />
+                <span>
+                  <span className={cn("block font-mono text-[10px] font-semibold", active ? "text-background/75" : "text-foreground")}>ID {candidate.id}</span>
+                  <span className="block font-medium">{candidate.label}</span>
+                  <span className={cn("block font-mono text-[10px]", active ? "text-background/70" : "text-muted-foreground")}>{count} 个匹配货位</span>
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+      <div className="relative bg-[radial-gradient(circle_at_50%_38%,color-mix(in_oklch,var(--muted)_72%,transparent),transparent_66%)]">
+        <ThreeStorageScene
+          boxId={box.id}
+          label={box.label}
+          subtitle={highlightedCells.size > 0 ? `已标记 ${highlightedCells.size} 个匹配货位` : box.subtitle}
+          locations={locations}
+          selectedCell={null}
+          onSelect={() => undefined}
+          onHover={() => undefined}
+          interactive={false}
+          highlightedCells={highlightedCells}
+          horizontalFraming={1.12}
+        />
+      </div>
     </section>
   )
 }

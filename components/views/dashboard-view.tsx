@@ -1,5 +1,6 @@
 "use client"
 
+import { useSyncExternalStore } from "react"
 import { NavigationLink as Link } from "@/components/navigation-link"
 import {
   AlertTriangleIcon,
@@ -23,7 +24,46 @@ function formatNumber(value: number) {
   return new Intl.NumberFormat("zh-CN").format(value)
 }
 
+function subscribeToSystemTime(onStoreChange: () => void) {
+  let timer: ReturnType<typeof setTimeout>
+
+  const scheduleNextMinute = () => {
+    timer = setTimeout(() => {
+      onStoreChange()
+      scheduleNextMinute()
+    }, 60_000 - (Date.now() % 60_000))
+  }
+
+  scheduleNextMinute()
+  return () => clearTimeout(timer)
+}
+
+function getCurrentMinute() {
+  return Math.floor(Date.now() / 60_000)
+}
+
+function getServerMinute() {
+  return 0
+}
+
+function getWelcomeMessage(hour: number) {
+  if (hour < 6) return "夜深了，忙完记得早点休息"
+  if (hour < 9) return "早上好，新的一天开始了"
+  if (hour < 12) return "上午好，今天进展还顺利吗？"
+  if (hour < 14) return "中午好，忙里也别忘了吃饭"
+  if (hour < 18) return "下午好，喝口水再继续吧"
+  return "晚上好，今天辛苦了"
+}
+
 export function DashboardView({ overview, items = [], boxes = [] }: { overview: InventoryOverview; items?: ComponentItem[]; boxes?: StorageBox[] }) {
+  const currentMinute = useSyncExternalStore(
+    subscribeToSystemTime,
+    getCurrentMinute,
+    getServerMinute,
+  )
+  const welcomeMessage = currentMinute === 0
+    ? "你好，欢迎回来"
+    : getWelcomeMessage(new Date(currentMinute * 60_000).getHours())
   const maxCategory = Math.max(...overview.categories.map((item) => item.quantity), 1)
 
   const stats = [
@@ -65,7 +105,7 @@ export function DashboardView({ overview, items = [], boxes = [] }: { overview: 
             Inventory pulse
           </p>
           <h2 className="mt-2 text-2xl font-semibold tracking-[-0.035em] sm:text-3xl">
-            下午好，工作台已就绪
+            {welcomeMessage}
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">
             这里是当前元件库的实时摘要和最近变动。
