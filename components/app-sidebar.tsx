@@ -33,7 +33,7 @@ const navigation = [
 
   { title: "出入库", href: "/movements", icon: PackagePlusIcon },
   { title: "库存提醒", href: "/alerts", icon: AlertTriangleIcon},
-    { title: "iBOM", href: "/bom", icon: ListTreeIcon, badge: "🚧" },
+  { title: "iBOM", href: "/bom", icon: ListTreeIcon },
   { title: "RetosAI", href: "/waitlist", icon: SparklesIcon, badge: "🚧" },
 ]
 

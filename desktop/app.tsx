@@ -13,13 +13,14 @@ import { ComponentsView } from "@/components/views/components-view"
 import { DashboardView } from "@/components/views/dashboard-view"
 import { MovementsView } from "@/components/views/movements-view"
 import { AlertsView } from "@/components/views/alerts-view"
+import { BomView } from "@/components/views/bom-view"
 import { WaitlistView } from "@/components/views/waitlist-view"
 import { inventoryOverview } from "@/lib/inventory-types"
 import { createMovement, deleteStorageBox, saveComponent, saveStorageBox, setStockQuantity, type Snapshot, type SyncReport } from "./api"
 import { DesktopSettings } from "./settings"
 
 function DesktopLink({ href, ...props }: NavigationLinkProps) { return <a {...props} href={`#${href}`} /> }
-function currentPath() { return window.location.hash.slice(1) || "/components" }
+function currentPath() { return window.location.hash.slice(1) || "/dashboard" }
 
 export function DesktopApp() {
   const [pathname, setPathname] = useState(currentPath)
@@ -97,7 +98,7 @@ export function DesktopApp() {
                 : pathname === "/waitlist" 
                   ? <WaitlistView />
                   : pathname === "/bom"
-                  ? <WaitlistView />
+                  ? <BomView items={snapshot.components} boxes={snapshot.boxes} />
                     : pathname === "/alerts" 
                     ? <AlertsView items={snapshot.components} /> 
                       : <>
