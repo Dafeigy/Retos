@@ -1,0 +1,68 @@
+name: Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build-android-apk:
+    name: Build installable ARM64 debug APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install Android toolchain
+        run: sdkmanager "platforms;android-37" "build-tools;36.0.0" "ndk;30.0.16248370"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Initialize Android project
+        run: npm run android:init
+
+      - name: Build installable APK
+        run: npm run android:build:debug
+
+      - name: Stage and verify APK
+        run: |
+          apk_path="src-tauri/gen/android/app/build/outputs/apk/arm64/debug/app-arm64-debug.apk"
+          test -f "$apk_path"
+          mkdir -p release
+          cp "$apk_path" release/Retos-android-arm64-debug.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs release/Retos-android-arm64-debug.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: Retos-android-arm64-debug
+          path: release/Retos-android-arm64-debug.apk
+          if-no-files-found: error
+          retention-days: 14

@@ -132,10 +132,15 @@ async fn sync_inventory(
     )?;
     Ok(report)
 }
-
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
+            #[cfg(target_os = "android")]
+            android_keyring::set_android_keyring_credential_builder().map_err(|error| {
+                std::io::Error::other(format!("无法初始化 Android 系统凭据存储：{error}"))
+            })?;
+
             let directory = app.path().app_data_dir()?;
             std::fs::create_dir_all(&directory)?;
             let mut connection = Connection::open(directory.join("inventory.sqlite3"))?;
