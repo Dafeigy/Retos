@@ -48,8 +48,8 @@ jobs:
         with:
           tag_name: main-${{ github.sha }}
           target_commitish: ${{ github.sha }}
-          name: Windows portable build ${{ github.sha }}
-          body: Automated Windows portable build from main at commit ${{ github.sha }}.
+          name: Automated build ${{ github.sha }}
+          body: Automated Windows portable executable and Android ARM64 APK build from main at commit ${{ github.sha }}.
           prerelease: true
           files: release/Retos-portable.exe
           overwrite_files: true

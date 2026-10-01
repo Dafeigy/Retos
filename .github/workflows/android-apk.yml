@@ -7,11 +7,11 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-android-apk:
-    name: Build installable ARM64 debug APK
+    name: Build signed ARM64 release APK
     runs-on: ubuntu-latest
 
     steps:
@@ -47,8 +47,29 @@ jobs:
       - name: Initialize Android project
         run: npm run android:init
 
-      - name: Build installable APK
-        run: npm run android:build:debug
+      - name: Configure Android release signing
+        shell: bash
+        env:
+          ANDROID_KEY_BASE64: ${{ secrets.ANDROID_KEY_BASE64 }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for secret_name in ANDROID_KEY_BASE64 ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [[ -z "${!secret_name:-}" ]]; then
+              echo "::error::Missing required GitHub Actions secret: $secret_name"
+              exit 1
+            fi
+          done
+          printf '%s' "$ANDROID_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/retos-release.jks"
+          node scripts/configure-android-signing.mjs
+
+      - name: Build signed release APK
+        env:
+          ANDROID_KEYSTORE_FILE: ${{ runner.temp }}/retos-release.jks
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: npm run android:build
 
       - name: Stage and verify APK
         shell: bash
@@ -75,13 +96,24 @@ jobs:
           fi
 
           mkdir -p release
-          cp "$apk_path" release/Retos-android-arm64-debug.apk
-          "$apksigner" verify --verbose --print-certs release/Retos-android-arm64-debug.apk
+          cp "$apk_path" release/Retos-android-arm64-release.apk
+          "$apksigner" verify --verbose --print-certs release/Retos-android-arm64-release.apk
 
-      - name: Upload APK
+      - name: Upload workflow artifact
         uses: actions/upload-artifact@v7
         with:
-          name: Retos-android-arm64-debug
-          path: release/Retos-android-arm64-debug.apk
+          name: Retos-android-arm64-release
+          path: release/Retos-android-arm64-release.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Publish GitHub prerelease
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: main-${{ github.sha }}
+          target_commitish: ${{ github.sha }}
+          name: Automated build ${{ github.sha }}
+          body: Automated Windows portable executable and Android ARM64 APK build from main at commit ${{ github.sha }}.
+          prerelease: true
+          files: release/Retos-android-arm64-release.apk
+          overwrite_files: true
