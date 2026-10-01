@@ -51,12 +51,32 @@ jobs:
         run: npm run android:build:debug
 
       - name: Stage and verify APK
+        shell: bash
         run: |
-          apk_path="src-tauri/gen/android/app/build/outputs/apk/arm64/debug/app-arm64-debug.apk"
-          test -f "$apk_path"
+          set -euo pipefail
+
+          outputs_dir="src-tauri/gen/android/app/build/outputs"
+          echo "Generated Android build outputs:"
+          find "$outputs_dir" -type f -print | sort
+
+          mapfile -t apk_files < <(find "$outputs_dir/apk" -type f -name '*.apk' -print | sort)
+          if [[ "${#apk_files[@]}" -ne 1 ]]; then
+            echo "Expected exactly one APK, found ${#apk_files[@]}." >&2
+            printf 'APK candidate: %s\n' "${apk_files[@]}" >&2
+            exit 1
+          fi
+
+          apk_path="${apk_files[0]}"
+          apksigner="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          if [[ ! -x "$apksigner" ]]; then
+            echo "apksigner is missing or not executable: $apksigner" >&2
+            find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name 'apksigner*' -print >&2
+            exit 1
+          fi
+
           mkdir -p release
           cp "$apk_path" release/Retos-android-arm64-debug.apk
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs release/Retos-android-arm64-debug.apk
+          "$apksigner" verify --verbose --print-certs release/Retos-android-arm64-debug.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v7
