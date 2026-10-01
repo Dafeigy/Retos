@@ -167,17 +167,40 @@ fn unseal(data: &[u8]) -> Result<Vec<u8>, String> {
 }
 
 #[cfg(not(windows))]
-fn seal(data: &[u8]) -> Result<Vec<u8>, String> {
+fn seal_in_keyring(data: &[u8]) -> Result<Vec<u8>, String> {
     let id = uuid::Uuid::new_v4().to_string();
     keyring::Entry::new("com.retos.inventory", &id)
         .and_then(|e| e.set_secret(data))
         .map_err(|_| "无法访问系统凭据存储。")?;
     Ok(id.into_bytes())
 }
+
 #[cfg(not(windows))]
-fn unseal(data: &[u8]) -> Result<Vec<u8>, String> {
+fn unseal_from_keyring(data: &[u8]) -> Result<Vec<u8>, String> {
     let id = std::str::from_utf8(data).map_err(|_| "无效的凭据引用。")?;
     keyring::Entry::new("com.retos.inventory", id)
         .and_then(|e| e.get_secret())
         .map_err(|_| "无法读取系统凭据。".into())
+}
+
+// Android installs an Android Keystore-backed keyring builder during application setup.
+#[cfg(target_os = "android")]
+fn seal(data: &[u8]) -> Result<Vec<u8>, String> {
+    seal_in_keyring(data)
+}
+
+#[cfg(target_os = "android")]
+fn unseal(data: &[u8]) -> Result<Vec<u8>, String> {
+    unseal_from_keyring(data)
+}
+
+// macOS/iOS use Keychain; Linux and other Unix desktops use Secret Service.
+#[cfg(all(not(windows), not(target_os = "android")))]
+fn seal(data: &[u8]) -> Result<Vec<u8>, String> {
+    seal_in_keyring(data)
+}
+
+#[cfg(all(not(windows), not(target_os = "android")))]
+fn unseal(data: &[u8]) -> Result<Vec<u8>, String> {
+    unseal_from_keyring(data)
 }
