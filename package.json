@@ -15,11 +15,14 @@
     "tauri": "tauri",
     "desktop": "tauri dev",
     "desktop:package": "tauri build",
+    "android:init": "tauri android init --ci --skip-targets-install",
+    "android:build": "tauri android build --apk --target aarch64 --ci",
+    "android:build:debug": "tauri android build --debug --apk --target aarch64 --ci",
     "test:desktop": "cargo test --manifest-path src-tauri/Cargo.toml"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
-    "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/api": "^2.12.1",
     "@types/three": "^0.186.0",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.3.2",
