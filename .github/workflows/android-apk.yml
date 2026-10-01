@@ -34,7 +34,7 @@ jobs:
         uses: android-actions/setup-android@v4
 
       - name: Install Android toolchain
-        run: sdkmanager "platforms;android-37" "build-tools;36.0.0" "ndk;30.0.16248370"
+        run: android --no-metrics sdk install "platforms/android-37.0" "build-tools/36.0.0" "ndk/30.0.16248370"
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
