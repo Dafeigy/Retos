@@ -83,9 +83,9 @@ export function DesktopApp() {
   </>
 
   return (
-    <NavigationLinkContext.Provider value={DesktopLink}><InventoryActionsContext.Provider value={actions}><TooltipProvider><SidebarProvider>
+    <NavigationLinkContext.Provider value={DesktopLink}><InventoryActionsContext.Provider value={actions}><TooltipProvider><SidebarProvider className="tauri-app-shell">
       <AppSidebar pathname={pathname} />
-      <SidebarInset className="min-w-0 bg-muted/30"><WorkspaceHeader pathname={pathname} /><main className="flex-1 px-4 pt-4 pb-[calc(7rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-6 sm:pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-6 lg:p-8">
+      <SidebarInset className="min-w-0 bg-muted/30"><WorkspaceHeader pathname={pathname} /><main className="flex-1 px-4 pt-4 pb-[calc(7rem+var(--app-safe-area-bottom))] sm:px-6 sm:pt-6 sm:pb-[calc(7rem+var(--app-safe-area-bottom))] md:pb-6 lg:p-8">
         {error ? <div role="alert" className="mb-4 flex items-center gap-3 text-sm text-destructive">{error}<Button variant="outline" size="sm" onClick={() => void refresh().catch((e) => setError(actionError(e)))}>重试</Button></div> : null}
         {pathname === "/settings" 
           ? <DesktopSettings onSaved={refresh} /> 

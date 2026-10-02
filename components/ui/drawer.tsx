@@ -30,7 +30,7 @@ function DrawerContent({ className, children, mobileFullWidth = false, ...props 
         <DrawerPrimitive.Popup
           data-slot="drawer-content"
           className={cn(
-            "relative h-full overflow-y-auto overscroll-contain bg-popover pb-[calc(env(safe-area-inset-bottom)+1.5rem)] text-popover-foreground shadow-2xl outline-none [transform:translateX(var(--drawer-swipe-movement-x))] transition-transform duration-200 ease-out data-ending-style:translate-x-full data-starting-style:translate-x-full data-swiping:select-none",
+            "relative h-full overflow-y-auto overscroll-contain bg-popover pt-[var(--app-safe-area-top)] pb-[calc(var(--app-safe-area-bottom)+1.5rem)] text-popover-foreground shadow-2xl outline-none [transform:translateX(var(--drawer-swipe-movement-x))] transition-transform duration-200 ease-out data-ending-style:translate-x-full data-starting-style:translate-x-full data-swiping:select-none",
             mobileFullWidth
               ? "w-full border-l-0 md:w-[min(100%-2rem,27.3rem)] md:border-l"
               : "w-[min(100%-2rem,27.3rem)] border-l",

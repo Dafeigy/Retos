@@ -70,7 +70,7 @@ export function MobileBottomNavigation({ pathname }: { pathname: string }) {
       }}
       transition={{ duration: reducedMotion ? 0 : 0.24, ease: "linear" }}
       className={cn(
-        "fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-40 mx-auto grid max-w-md grid-cols-4 gap-1 rounded-[1.75rem] border border-border/80 bg-background/92 p-1.5 text-foreground shadow-[0_12px_40px_rgba(0,0,0,0.18)] backdrop-blur-xl will-change-transform md:hidden",
+        "fixed inset-x-3 bottom-[calc(var(--app-safe-area-bottom)+0.75rem)] z-40 mx-auto grid max-w-md grid-cols-4 gap-1 rounded-[1.75rem] border border-border/80 bg-background/92 p-1.5 text-foreground shadow-[0_12px_40px_rgba(0,0,0,0.18)] backdrop-blur-xl will-change-transform md:hidden",
         !visible && "pointer-events-none",
       )}
     >
