@@ -129,7 +129,7 @@ export function AddComponentDialog({ categories, items = [], open: controlledOpe
   return (
     <Drawer open={open} onOpenChange={closeDialog} swipeDirection="right">
       {showTrigger ? <DrawerTrigger render={<Button className="cursor-pointer" />}><PlusIcon />新增元件</DrawerTrigger> : null}
-      <DrawerContent>
+      <DrawerContent mobileFullWidth>
         <DrawerHeader>
           <DrawerTitle>新增元件</DrawerTitle>
           <DrawerDescription>名称可重复；以分类、封装与参数区分不同器件。</DrawerDescription>

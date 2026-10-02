@@ -44,7 +44,7 @@ export function WebWorkspace({ children }: { children: ReactNode }) {
           <AppSidebar pathname={pathname} onLogout={logout} />
           <SidebarInset className="min-w-0 bg-muted/30">
             <WorkspaceHeader pathname={pathname} />
-            <main className="flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
+            <main className="flex-1 px-4 pt-4 pb-[calc(7rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-6 sm:pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-6 lg:p-8">{children}</main>
           </SidebarInset>
         </SidebarProvider>
       </InventoryActionsContext.Provider>

@@ -1,6 +1,7 @@
 "use client"
 
 import { NavigationLink as Link } from "@/components/navigation-link"
+import { MobileBottomNavigation } from "@/components/mobile-bottom-navigation"
 import {
   AlertTriangleIcon,
   BoxesIcon,
@@ -25,6 +26,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  useSidebar,
 } from "@/components/ui/sidebar"
 
 const navigation = [
@@ -38,6 +40,12 @@ const navigation = [
 ]
 
 export function AppSidebar({ pathname, onLogout, ...props }: React.ComponentProps<typeof Sidebar> & { pathname: string; onLogout?: () => void }) {
+  const { isMobile } = useSidebar()
+
+  if (isMobile) {
+    return <MobileBottomNavigation key={pathname} pathname={pathname} />
+  }
+
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader className="p-3 group-data-[collapsible=icon]:p-2">
