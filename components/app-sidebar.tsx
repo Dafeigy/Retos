@@ -25,6 +25,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  useSidebar,
 } from "@/components/ui/sidebar"
 
 const navigation = [
@@ -38,6 +39,11 @@ const navigation = [
 ]
 
 export function AppSidebar({ pathname, onLogout, ...props }: React.ComponentProps<typeof Sidebar> & { pathname: string; onLogout?: () => void }) {
+  const { isMobile, setOpenMobile } = useSidebar()
+  const closeMobileSidebar = () => {
+    if (isMobile) setOpenMobile(false)
+  }
+
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader className="p-3 group-data-[collapsible=icon]:p-2">
@@ -45,7 +51,7 @@ export function AppSidebar({ pathname, onLogout, ...props }: React.ComponentProp
           <SidebarMenuItem>
             <SidebarMenuButton
               size="lg"
-              render={<Link href="/dashboard" />}
+              render={<Link href="/dashboard" onClick={closeMobileSidebar} />}
               className="cursor-pointer hover:bg-transparent active:bg-transparent"
             >
               <span className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-lg bg-[#111111] group-data-[collapsible=icon]:size-8">
@@ -80,7 +86,7 @@ export function AppSidebar({ pathname, onLogout, ...props }: React.ComponentProp
                     <SidebarMenuButton
                       tooltip={item.title}
                       isActive={pathname === item.href}
-                      render={<Link href={item.href} />}
+                      render={<Link href={item.href} onClick={closeMobileSidebar} />}
                       className="cursor-pointer"
                     >
                       <Icon />
@@ -105,7 +111,7 @@ export function AppSidebar({ pathname, onLogout, ...props }: React.ComponentProp
             <SidebarMenuButton
               tooltip="设置"
               isActive={pathname === "/settings"}
-              render={<Link href="/settings" />}
+              render={<Link href="/settings" onClick={closeMobileSidebar} />}
               className="cursor-pointer"
             >
               <SettingsIcon />

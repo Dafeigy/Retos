@@ -19,7 +19,7 @@ export function WorkspaceHeader({ pathname }: { pathname: string }) {
   const page = pageTitles[pathname] ?? pageTitles["/dashboard"]
 
   return (
-    <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between gap-4 border-b bg-background/88 px-4 backdrop-blur-md sm:px-6">
+    <header className="workspace-header sticky top-0 z-20 flex shrink-0 items-center justify-between gap-4 border-b bg-background/88 px-4 backdrop-blur-md sm:px-6">
       <div className="flex min-w-0 items-center gap-3">
         <SidebarTrigger className="-ml-1 cursor-pointer" />
         <Separator orientation="vertical" className="data-vertical:h-5" />
