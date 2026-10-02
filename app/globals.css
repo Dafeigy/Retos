@@ -155,6 +155,39 @@
   }
 }
 
+/* Tauri Android renders edge-to-edge. The sticky header owns the top inset so
+   its controls remain clear of the status bar after the page is scrolled. */
+:root {
+  --app-safe-area-top: 0px;
+  --app-safe-area-bottom: 0px;
+}
+
+:root[data-tauri-platform="android"] {
+  --app-safe-area-top: max(env(safe-area-inset-top), 24px);
+  --app-safe-area-bottom: max(env(safe-area-inset-bottom), 16px);
+}
+
+.workspace-header {
+  height: calc(4rem + var(--app-safe-area-top));
+  padding-block-start: var(--app-safe-area-top);
+}
+
+.tauri-app-shell {
+  padding-block-end: var(--app-safe-area-bottom);
+}
+
+:root[data-tauri-platform="android"] [data-sidebar="sidebar"][data-mobile="true"] {
+  padding-block-start: var(--app-safe-area-top);
+  padding-block-end: var(--app-safe-area-bottom);
+}
+
+@media (orientation: landscape) {
+  :root[data-tauri-platform="android"] {
+    --app-safe-area-top: max(env(safe-area-inset-top), 16px);
+    --app-safe-area-bottom: max(env(safe-area-inset-bottom), 12px);
+  }
+}
+
 .navigation-progress {
   opacity: 0;
   transition: opacity 180ms ease 200ms;
