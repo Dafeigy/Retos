@@ -94,6 +94,16 @@ export function ensureSyncSchema() {
         { sql: "INSERT OR IGNORE INTO storage_boxes (id,label,subtitle,created_at,updated_at) VALUES ('A','盒 01','电阻 / 电容',strftime('%Y-%m-%dT%H:%M:%fZ','now'),strftime('%Y-%m-%dT%H:%M:%fZ','now')),('B','盒 02','二极管 / 连接器',strftime('%Y-%m-%dT%H:%M:%fZ','now'),strftime('%Y-%m-%dT%H:%M:%fZ','now')),('C','盒 03','芯片 / 模块',strftime('%Y-%m-%dT%H:%M:%fZ','now'),strftime('%Y-%m-%dT%H:%M:%fZ','now'))", params: [] },
       ])
     }
+    await d1Query("CREATE TABLE IF NOT EXISTS bom_projects (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', file_name TEXT NOT NULL, rows_json TEXT NOT NULL, completed_json TEXT NOT NULL DEFAULT '[]', status TEXT NOT NULL DEFAULT '采购中' CHECK (status IN ('采购中','焊接中','测试中','完成')), start_date TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, updated_at TEXT NOT NULL, deleted_at TEXT)")
+    const projectColumns = await d1Query<{ name: string }>("PRAGMA table_info(bom_projects)")
+    if (!projectColumns.some((column) => column.name === "start_date")) {
+      try { await d1Query("ALTER TABLE bom_projects ADD COLUMN start_date TEXT NOT NULL DEFAULT ''") }
+      catch (error) {
+        const refreshed = await d1Query<{ name: string }>("PRAGMA table_info(bom_projects)")
+        if (!refreshed.some((column) => column.name === "start_date")) throw error
+      }
+    }
+    await d1Query("UPDATE bom_projects SET start_date = substr(created_at, 1, 10) WHERE start_date = ''")
   })().catch((error) => { syncSchema = undefined; throw error })
   return syncSchema
 }

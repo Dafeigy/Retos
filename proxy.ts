@@ -26,5 +26,6 @@ export const config = {
     "/waitlist/:path*",
     "/api/components/:path*",
     "/api/movements/:path*",
+    "/api/bom-projects/:path*",
   ],
 }

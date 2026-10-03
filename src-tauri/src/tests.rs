@@ -50,6 +50,97 @@ fn initialization_is_repeatable_and_does_not_reset_inventory() {
 }
 
 #[test]
+fn bom_project_progress_round_trips_and_preserves_unsent_edits() {
+    let mut local = database();
+    db::create_bom_project(
+        &mut local,
+        BomProjectInput {
+            name: "控制板".into(),
+            description: "Rev.C".into(),
+            file_name: "board.csv".into(),
+            rows_json: r#"[{"id":"1-1","comment":"电阻","quantity":2}]"#.into(),
+            start_date: "2026-10-03".into(),
+        },
+    )
+    .unwrap();
+    let project = db::bom_projects(&local, true).unwrap().pop().unwrap();
+    assert_eq!(project.status, "采购中");
+    assert_eq!(project.start_date, "2026-10-03");
+    db::acknowledge_push(
+        &mut local,
+        &[],
+        &[],
+        &[],
+        &[],
+        &[],
+        &[project.clone()],
+        &[project.clone()],
+    )
+    .unwrap();
+    assert!(db::bom_projects(&local, true).unwrap().is_empty());
+
+    let mut remote = database();
+    let report = db::apply_pull(&mut remote, &[], &[], &[], &[project.clone()]).unwrap();
+    assert_eq!(report.projects, 1);
+    db::update_bom_project(
+        &mut remote,
+        &project.id,
+        Some("焊接中".into()),
+        Some(vec!["1-1".into()]),
+    )
+    .unwrap();
+    let updated = db::bom_projects(&remote, true).unwrap().pop().unwrap();
+    assert_eq!(updated.completed_json, r#"["1-1"]"#);
+    db::update_bom_project_metadata(
+        &mut remote,
+        &project.id,
+        "控制板升级",
+        "Rev.D",
+        "2026-09-30",
+    )
+    .unwrap();
+    let edited = db::bom_projects(&remote, false).unwrap().pop().unwrap();
+    assert_eq!(edited.name, "控制板升级");
+    assert_eq!(edited.start_date, "2026-09-30");
+    assert!(
+        db::update_bom_project(&mut remote, &project.id, None, Some(vec!["unknown".into()]))
+            .is_err()
+    );
+    let report = db::apply_pull(&mut remote, &[], &[], &[], &[project]).unwrap();
+    assert_eq!(report.preserved, 1);
+    assert_eq!(
+        db::bom_projects(&remote, false).unwrap()[0].status,
+        "焊接中"
+    );
+}
+
+#[test]
+fn existing_database_adds_bom_projects_without_resetting_inventory() {
+    let mut conn = database();
+    let c = component(&mut conn, 12);
+    conn.execute_batch("DROP TABLE bom_projects; PRAGMA user_version=2;")
+        .unwrap();
+    db::initialize(&mut conn).unwrap();
+    assert!(db::bom_projects(&conn, false).unwrap().is_empty());
+    assert_eq!(
+        db::get_component(&conn, &c.id).unwrap().unwrap().quantity,
+        12
+    );
+    db::initialize(&mut conn).unwrap();
+}
+
+#[test]
+fn version_three_project_table_gains_start_date() {
+    let mut conn = database();
+    conn.execute_batch("DROP TABLE bom_projects; CREATE TABLE bom_projects (id TEXT PRIMARY KEY,name TEXT NOT NULL,description TEXT NOT NULL,file_name TEXT NOT NULL,rows_json TEXT NOT NULL,completed_json TEXT NOT NULL,status TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL,deleted_at TEXT,dirty INTEGER NOT NULL DEFAULT 0); INSERT INTO bom_projects (id,name,description,file_name,rows_json,completed_json,status,created_at,updated_at) VALUES ('old','旧项目','','old.csv','[]','[]','采购中','2026-09-01T10:00:00.000Z','2026-09-01T10:00:00.000Z'); PRAGMA user_version=3;").unwrap();
+    db::initialize(&mut conn).unwrap();
+    assert_eq!(
+        db::bom_projects(&conn, false).unwrap()[0].start_date,
+        "2026-09-01"
+    );
+}
+
+#[test]
 fn stock_and_movement_commit_together_and_reject_overdraw() {
     let mut conn = database();
     let c = component(&mut conn, 30);
@@ -107,14 +198,14 @@ fn pull_preserves_unsent_local_edits_and_deletions() {
     let mut remote = c.clone();
     remote.quantity = 999;
     remote.updated_at = "2099-01-01T00:00:00.000Z".into();
-    let report = db::apply_pull(&mut conn, &[remote.clone()], &[], &[]).unwrap();
+    let report = db::apply_pull(&mut conn, &[remote.clone()], &[], &[], &[]).unwrap();
     assert_eq!(report.preserved, 1);
     assert_eq!(
         db::get_component(&conn, &c.id).unwrap().unwrap().quantity,
         30
     );
     db::delete_component(&mut conn, &c.id).unwrap();
-    db::apply_pull(&mut conn, &[remote], &[], &[]).unwrap();
+    db::apply_pull(&mut conn, &[remote], &[], &[], &[]).unwrap();
     assert!(db::get_component(&conn, &c.id)
         .unwrap()
         .unwrap()
@@ -130,9 +221,9 @@ fn pull_uses_newer_versions_and_never_replays_stock_changes() {
     let all = db::components(&remote, true).unwrap();
     let moves = db::movements(&remote, true).unwrap();
     let mut local = database();
-    let first = db::apply_pull(&mut local, &all, &moves, &[]).unwrap();
+    let first = db::apply_pull(&mut local, &all, &moves, &[], &[]).unwrap();
     assert_eq!((first.components, first.movements), (1, 1));
-    let second = db::apply_pull(&mut local, &all, &moves, &[]).unwrap();
+    let second = db::apply_pull(&mut local, &all, &moves, &[], &[]).unwrap();
     assert_eq!((second.components, second.movements), (0, 0));
     assert_eq!(
         db::get_component(&local, &c.id).unwrap().unwrap().quantity,
@@ -141,8 +232,15 @@ fn pull_uses_newer_versions_and_never_replays_stock_changes() {
     assert_eq!(db::snapshot(&local).unwrap().pending, 0);
     // Older snapshots cannot resurrect an already pulled deletion.
     db::delete_component(&mut remote, &c.id).unwrap();
-    db::apply_pull(&mut local, &db::components(&remote, true).unwrap(), &moves, &[]).unwrap();
-    db::apply_pull(&mut local, &all, &moves, &[]).unwrap();
+    db::apply_pull(
+        &mut local,
+        &db::components(&remote, true).unwrap(),
+        &moves,
+        &[],
+        &[],
+    )
+    .unwrap();
+    db::apply_pull(&mut local, &all, &moves, &[], &[]).unwrap();
     assert!(db::components(&local, false).unwrap().is_empty());
 }
 
@@ -160,7 +258,7 @@ fn failed_pull_rolls_back_all_rows() {
         component_name: String::new(),
     };
     let mut local = database();
-    assert!(db::apply_pull(&mut local, &[c], &[m], &[]).is_err());
+    assert!(db::apply_pull(&mut local, &[c], &[m], &[], &[]).is_err());
     assert!(db::components(&local, false).unwrap().is_empty());
 }
 
@@ -170,13 +268,13 @@ fn push_acknowledgement_preserves_edits_made_during_network_request() {
     let c = component(&mut conn, 30);
     db::create_movement(&mut conn, movement(&c.id, 2, "in")).unwrap();
     assert_eq!(
-        db::acknowledge_push(&mut conn, &[c.clone()], &[c], &[], &[], &[]).unwrap(),
+        db::acknowledge_push(&mut conn, &[c.clone()], &[c], &[], &[], &[], &[], &[]).unwrap(),
         1
     );
     let current = db::components(&conn, true).unwrap();
     assert_eq!(current[0].quantity, 32);
     let moves = db::movements(&conn, true).unwrap();
-    db::acknowledge_push(&mut conn, &current, &current, &moves, &[], &[]).unwrap();
+    db::acknowledge_push(&mut conn, &current, &current, &moves, &[], &[], &[], &[]).unwrap();
     assert_eq!(db::snapshot(&conn).unwrap().pending, 0);
 }
 
@@ -184,7 +282,7 @@ fn push_acknowledgement_preserves_edits_made_during_network_request() {
 fn incomplete_push_ack_does_not_clear_pending_changes() {
     let mut conn = database();
     let c = component(&mut conn, 30);
-    assert!(db::acknowledge_push(&mut conn, &[c], &[], &[], &[], &[]).is_err());
+    assert!(db::acknowledge_push(&mut conn, &[c], &[], &[], &[], &[], &[], &[]).is_err());
     assert_eq!(db::snapshot(&conn).unwrap().pending, 1);
 }
 
@@ -195,7 +293,7 @@ fn newer_cloud_record_wins_when_push_is_acknowledged() {
     let mut remote = c.clone();
     remote.updated_at = "2099-01-01T00:00:00.000Z".into();
     remote.quantity = 21;
-    db::acknowledge_push(&mut conn, &[c.clone()], &[remote], &[], &[], &[]).unwrap();
+    db::acknowledge_push(&mut conn, &[c.clone()], &[remote], &[], &[], &[], &[], &[]).unwrap();
     assert_eq!(
         db::get_component(&conn, &c.id).unwrap().unwrap().quantity,
         21
@@ -261,7 +359,7 @@ fn remote_upsert_compares_old_and_new_date_formats() {
 fn config_round_trip_encrypts_token_and_target_switch_marks_all_dirty() {
     let mut conn = database();
     let c = component(&mut conn, 30);
-    db::acknowledge_push(&mut conn, &[c.clone()], &[c], &[], &[], &[]).unwrap();
+    db::acknowledge_push(&mut conn, &[c.clone()], &[c], &[], &[], &[], &[], &[]).unwrap();
     let input = config::ConfigInput {
         account_id: "a".repeat(32),
         database_id: "00000000-0000-4000-8000-000000000001".into(),

@@ -83,7 +83,7 @@ pub fn save(conn: &mut Connection, input: ConfigInput) -> Result<(), String> {
         tx.execute("INSERT INTO local_settings(key,value) VALUES('api_token',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", [sealed]).map_err(db_error)?;
     }
     if target_changed {
-        tx.execute_batch("UPDATE components SET dirty=1; UPDATE stock_movements SET dirty=1; DELETE FROM local_settings WHERE key IN ('last_push','last_pull');").map_err(db_error)?;
+        tx.execute_batch("UPDATE components SET dirty=1; UPDATE stock_movements SET dirty=1; UPDATE bom_projects SET dirty=1; DELETE FROM local_settings WHERE key IN ('last_push','last_pull');").map_err(db_error)?;
     }
     tx.commit().map_err(db_error)
 }

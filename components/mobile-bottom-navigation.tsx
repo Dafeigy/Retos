@@ -5,6 +5,7 @@ import {
   AlertTriangleIcon,
   BoxesIcon,
   LayoutDashboardIcon,
+  ListTreeIcon,
   PackagePlusIcon,
 } from "lucide-react"
 import { motion, useReducedMotion } from "motion/react"
@@ -17,6 +18,7 @@ const mobileNavigation = [
   { title: "元件库存", href: "/components", icon: BoxesIcon },
   { title: "出入库", href: "/movements", icon: PackagePlusIcon },
   { title: "库存提醒", href: "/alerts", icon: AlertTriangleIcon },
+  { title: "iBOM", href: "/bom", icon: ListTreeIcon },
 ]
 
 export function MobileBottomNavigation({ pathname }: { pathname: string }) {
@@ -70,13 +72,13 @@ export function MobileBottomNavigation({ pathname }: { pathname: string }) {
       }}
       transition={{ duration: reducedMotion ? 0 : 0.24, ease: "linear" }}
       className={cn(
-        "fixed inset-x-3 bottom-[calc(var(--app-safe-area-bottom)+0.75rem)] z-40 mx-auto grid max-w-md grid-cols-4 gap-1 rounded-[1.75rem] border border-border/80 bg-background/92 p-1.5 text-foreground shadow-[0_12px_40px_rgba(0,0,0,0.18)] backdrop-blur-xl will-change-transform md:hidden",
+        "fixed inset-x-3 bottom-[calc(var(--app-safe-area-bottom)+0.75rem)] z-40 mx-auto grid max-w-md grid-cols-5 gap-1 rounded-[1.75rem] border border-border/80 bg-background/92 p-1.5 text-foreground shadow-[0_12px_40px_rgba(0,0,0,0.18)] backdrop-blur-xl will-change-transform md:hidden",
         !visible && "pointer-events-none",
       )}
     >
       {mobileNavigation.map((item) => {
         const Icon = item.icon
-        const active = pathname === item.href
+        const active = pathname === item.href || (item.href === "/bom" && pathname.startsWith("/bom/"))
 
         return (
           <Link

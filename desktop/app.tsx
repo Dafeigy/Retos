@@ -13,10 +13,11 @@ import { ComponentsView } from "@/components/views/components-view"
 import { DashboardView } from "@/components/views/dashboard-view"
 import { MovementsView } from "@/components/views/movements-view"
 import { AlertsView } from "@/components/views/alerts-view"
-import { BomView } from "@/components/views/bom-view"
+import { BomBoardView } from "@/components/views/bom-board-view"
+import { BomProjectDetail } from "@/components/views/bom-project-detail"
 import { WaitlistView } from "@/components/views/waitlist-view"
 import { inventoryOverview } from "@/lib/inventory-types"
-import { createMovement, deleteStorageBox, saveComponent, saveStorageBox, setStockQuantity, type Snapshot, type SyncReport } from "./api"
+import { createBomProject, createMovement, deleteStorageBox, saveComponent, saveStorageBox, setStockQuantity, updateBomProject, updateBomProjectMetadata, type Snapshot, type SyncReport } from "./api"
 import { DesktopSettings } from "./settings"
 
 function DesktopLink({ href, ...props }: NavigationLinkProps) { return <a {...props} href={`#${href}`} /> }
@@ -68,7 +69,7 @@ export function DesktopApp() {
     try {
       const report = await invoke<SyncReport>("sync_inventory", { direction })
       await refresh()
-      setSyncMessage(`${direction === "push" ? "已推送" : "已拉取"} ${report.components} 项元件、${report.movements} 条流水、${report.boxes} 个收纳盒${report.preserved ? `，保留 ${report.preserved} 项本地修改` : ""}`)
+      setSyncMessage(`${direction === "push" ? "已推送" : "已拉取"} ${report.components} 项元件、${report.movements} 条流水、${report.boxes} 个收纳盒、${report.projects} 个 iBOM 项目${report.preserved ? `，保留 ${report.preserved} 项本地修改` : ""}`)
     } catch (error) { setSyncMessage(actionError(error)); setSyncFailed(true) }
     finally { setSyncing(null) }
   }
@@ -81,6 +82,7 @@ export function DesktopApp() {
       {syncing === "pull" ? <LoaderCircleIcon className="animate-spin" /> : <ArrowDownToLineIcon />}拉取更新
     </Button>
   </>
+  const activeBomProject = pathname.startsWith("/bom/") ? snapshot?.projects.find((item) => item.id === pathname.slice(5)) : undefined
 
   return (
     <NavigationLinkContext.Provider value={DesktopLink}><InventoryActionsContext.Provider value={actions}><TooltipProvider><SidebarProvider className="tauri-app-shell">
@@ -98,7 +100,9 @@ export function DesktopApp() {
                 : pathname === "/waitlist" 
                   ? <WaitlistView />
                   : pathname === "/bom"
-                  ? <BomView items={snapshot.components} boxes={snapshot.boxes} />
+                  ? <BomBoardView projects={snapshot.projects} createProject={async (name, description, fileName, rows, startDate) => { await createBomProject(name, description, fileName, rows, startDate); await refresh() }} changeStatus={async (id, status) => { await updateBomProject(id, status); await refresh() }} editProject={async (id, name, description, startDate) => { await updateBomProjectMetadata(id, name, description, startDate); await refresh() }} />
+                  : pathname.startsWith("/bom/")
+                  ? activeBomProject ? <BomProjectDetail key={`${activeBomProject.id}:${activeBomProject.updated_at}`} project={activeBomProject} items={snapshot.components} boxes={snapshot.boxes} saveCompleted={async (completed) => { await updateBomProject(activeBomProject.id, undefined, completed); await refresh() }} /> : <p role="alert">项目不存在。请返回 iBOM 项目看板。</p>
                     : pathname === "/alerts" 
                     ? <AlertsView items={snapshot.components} /> 
                       : <>

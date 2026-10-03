@@ -43,7 +43,11 @@ fn delete_component(state: State<AppState>, id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn save_storage_box(state: State<AppState>, id: Option<String>, input: StorageBoxInput) -> Result<(), String> {
+fn save_storage_box(
+    state: State<AppState>,
+    id: Option<String>,
+    input: StorageBoxInput,
+) -> Result<(), String> {
     db::save_storage_box(&mut *state.connection()?, id, input)
 }
 
@@ -53,12 +57,49 @@ fn delete_storage_box(state: State<AppState>, id: String) -> Result<(), String> 
 }
 
 #[tauri::command]
+fn create_bom_project(state: State<AppState>, input: BomProjectInput) -> Result<(), String> {
+    db::create_bom_project(&mut *state.connection()?, input)
+}
+
+#[tauri::command]
+fn update_bom_project(
+    state: State<AppState>,
+    id: String,
+    status: Option<String>,
+    completed: Option<Vec<String>>,
+) -> Result<(), String> {
+    db::update_bom_project(&mut *state.connection()?, &id, status, completed)
+}
+
+#[tauri::command]
+fn update_bom_project_metadata(
+    state: State<AppState>,
+    id: String,
+    name: String,
+    description: String,
+    start_date: String,
+) -> Result<(), String> {
+    db::update_bom_project_metadata(
+        &mut *state.connection()?,
+        &id,
+        &name,
+        &description,
+        &start_date,
+    )
+}
+
+#[tauri::command]
 fn create_movement(state: State<AppState>, input: MovementInput) -> Result<(), String> {
     db::create_movement(&mut *state.connection()?, input)
 }
 
 #[tauri::command]
-fn set_stock_quantity(state: State<AppState>, id: String, quantity: i64, note: String) -> Result<(), String> {
+fn set_stock_quantity(
+    state: State<AppState>,
+    id: String,
+    quantity: i64,
+    note: String,
+) -> Result<(), String> {
     db::set_stock_quantity(&mut *state.connection()?, &id, quantity, &note)
 }
 
@@ -98,11 +139,18 @@ async fn sync_inventory(
     let cloud = sync::Cloud::new(config)?;
     cloud.ensure_schema().await?;
     let report = if direction == "push" {
-        let (components, movements, boxes) = {
+        let (components, movements, boxes, projects) = {
             let conn = state.connection()?;
-            (db::components(&conn, true)?, db::movements(&conn, true)?, db::storage_boxes(&conn, true)?)
+            (
+                db::components(&conn, true)?,
+                db::movements(&conn, true)?,
+                db::storage_boxes(&conn, true)?,
+                db::bom_projects(&conn, true)?,
+            )
         };
-        let (canonical, canonical_boxes) = cloud.upload(&components, &movements, &boxes).await?;
+        let (canonical, canonical_boxes, canonical_projects) = cloud
+            .upload(&components, &movements, &boxes, &projects)
+            .await?;
         let preserved = db::acknowledge_push(
             &mut *state.connection()?,
             &components,
@@ -110,16 +158,25 @@ async fn sync_inventory(
             &movements,
             &boxes,
             &canonical_boxes,
+            &projects,
+            &canonical_projects,
         )?;
         SyncReport {
             components: components.len(),
             movements: movements.len(),
             boxes: boxes.len(),
+            projects: projects.len(),
             preserved,
         }
     } else {
-        let (components, movements, boxes) = cloud.download().await?;
-        db::apply_pull(&mut *state.connection()?, &components, &movements, &boxes)?
+        let (components, movements, boxes, projects) = cloud.download().await?;
+        db::apply_pull(
+            &mut *state.connection()?,
+            &components,
+            &movements,
+            &boxes,
+            &projects,
+        )?
     };
     config::set_setting(
         &*state.connection()?,
@@ -157,6 +214,9 @@ pub fn run() {
             delete_component,
             save_storage_box,
             delete_storage_box,
+            create_bom_project,
+            update_bom_project,
+            update_bom_project_metadata,
             create_movement,
             set_stock_quantity,
             cloud_config,

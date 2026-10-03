@@ -40,6 +40,30 @@ pub struct StorageBox {
     pub deleted_at: Option<String>,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct BomProject {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub file_name: String,
+    pub rows_json: String,
+    pub completed_json: String,
+    pub status: String,
+    pub start_date: String,
+    pub created_at: String,
+    pub updated_at: String,
+    pub deleted_at: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct BomProjectInput {
+    pub name: String,
+    pub description: String,
+    pub file_name: String,
+    pub rows_json: String,
+    pub start_date: String,
+}
+
 #[derive(Deserialize)]
 pub struct ComponentInput {
     pub name: String,
@@ -61,7 +85,10 @@ pub struct StorageBoxInput {
 
 impl StorageBoxInput {
     pub fn validate(&self) -> Result<(), String> {
-        if self.label.trim().is_empty() || self.label.trim().len() > 80 || self.subtitle.trim().len() > 120 {
+        if self.label.trim().is_empty()
+            || self.label.trim().len() > 80
+            || self.subtitle.trim().len() > 120
+        {
             return Err("请输入有效的盒子名称。".into());
         }
         Ok(())
@@ -101,6 +128,7 @@ pub struct Snapshot {
     pub components: Vec<Component>,
     pub movements: Vec<Movement>,
     pub boxes: Vec<StorageBox>,
+    pub projects: Vec<BomProject>,
     pub pending: i64,
 }
 
@@ -109,5 +137,6 @@ pub struct SyncReport {
     pub components: usize,
     pub movements: usize,
     pub boxes: usize,
+    pub projects: usize,
     pub preserved: usize,
 }

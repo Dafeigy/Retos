@@ -1,10 +1,24 @@
 import { invoke } from "@tauri-apps/api/core"
 import type { InventoryForm } from "@/components/inventory-actions"
 import type { ComponentItem, StockMovement, StorageBox } from "@/lib/inventory-types"
+import type { BomProject } from "@/lib/bom-project"
+import type { BomRow } from "@/lib/bom"
 
-export type Snapshot = { components: ComponentItem[]; movements: StockMovement[]; boxes: StorageBox[]; pending: number }
+export type Snapshot = { components: ComponentItem[]; movements: StockMovement[]; boxes: StorageBox[]; projects: BomProject[]; pending: number }
 export type CloudConfig = { account_id: string; database_id: string; has_token: boolean; last_push: string | null; last_pull: string | null }
-export type SyncReport = { components: number; movements: number; boxes: number; preserved: number }
+export type SyncReport = { components: number; movements: number; boxes: number; projects: number; preserved: number }
+
+export async function createBomProject(name: string, description: string, fileName: string, rows: BomRow[], startDate: string) {
+  await invoke("create_bom_project", { input: { name, description, file_name: fileName, rows_json: JSON.stringify(rows), start_date: startDate } })
+}
+
+export async function updateBomProjectMetadata(id: string, name: string, description: string, startDate: string) {
+  await invoke("update_bom_project_metadata", { id, name, description, startDate })
+}
+
+export async function updateBomProject(id: string, status?: string, completed?: string[]) {
+  await invoke("update_bom_project", { id, status: status ?? null, completed: completed ?? null })
+}
 
 function optionalNumber(value: unknown) { return value === "" || value === undefined || value === null ? null : Number(value) }
 

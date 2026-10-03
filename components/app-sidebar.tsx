@@ -87,7 +87,7 @@ export function AppSidebar({ pathname, onLogout, ...props }: React.ComponentProp
                   <SidebarMenuItem key={item.href}>
                     <SidebarMenuButton
                       tooltip={item.title}
-                      isActive={pathname === item.href}
+                      isActive={pathname === item.href || (item.href === "/bom" && pathname.startsWith("/bom/"))}
                       render={<Link href={item.href} />}
                       className="cursor-pointer"
                     >

@@ -1,9 +1,8 @@
-import { BomView } from "@/components/views/bom-view"
-import { getComponents, getStorageBoxes } from "@/lib/inventory"
+import { WebBomBoard } from "@/components/views/web-bom-board"
+import { getBomProjects } from "@/lib/bom-project-data"
 
-export const metadata = { title: "iBOM 匹配" }
+export const metadata = { title: "iBOM 项目" }
 
 export default async function Page() {
-  const [items, boxes] = await Promise.all([getComponents(), getStorageBoxes()])
-  return <BomView items={items} boxes={boxes} />
+  return <WebBomBoard projects={await getBomProjects()} />
 }

@@ -44,3 +44,17 @@ CREATE INDEX IF NOT EXISTS idx_components_category ON components(category);
 CREATE INDEX IF NOT EXISTS idx_components_location ON components(location);
 CREATE INDEX IF NOT EXISTS idx_movements_component ON stock_movements(component_id);
 CREATE INDEX IF NOT EXISTS idx_movements_created_at ON stock_movements(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS bom_projects (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  file_name TEXT NOT NULL,
+  rows_json TEXT NOT NULL,
+  completed_json TEXT NOT NULL DEFAULT '[]',
+  status TEXT NOT NULL DEFAULT '采购中' CHECK (status IN ('采购中', '焊接中', '测试中', '完成')),
+  start_date TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  deleted_at TEXT
+);
